@@ -33,6 +33,13 @@ SOURCE_URL = "https://admin.cdn.sos.ca.gov/ca-roster/2025/counties2.pdf"
 SOURCE_TYPE = "official_state"
 COLLECTED_AT = datetime.now(timezone.utc).isoformat()
 
+# NOTE: In a production system these constants would be pulled from the database
+# rather than hardcoded — CA_COUNTIES from governing_entities (filtered by state),
+# ELECTED_ROLES/APPOINTED_ROLES/OFFICE_NORMALIZATION from the office_types table
+# and a per-state selection_method reference table. Any incoming record that doesn't
+# match a known entity or office should be flagged for review rather than silently
+# inserted. The MVP uses INSERT OR IGNORE, which is fine for a single-source
+# bootstrap but would hide conflicts in an ongoing pipeline.
 CA_COUNTIES = {
     "Alameda", "Alpine", "Amador", "Butte", "Calaveras", "Colusa",
     "Contra Costa", "Del Norte", "El Dorado", "Fresno", "Glenn",
@@ -46,21 +53,8 @@ CA_COUNTIES = {
     "Tehama", "Trinity", "Tulare", "Tuolumne", "Ventura", "Yolo", "Yuba",
 }
 
-# Roles that are structurally elected in California counties.
-# Source: California Government Code / CA Constitution.
+# Roles that are structurally elected in California counties. Best-guess, not authoritative.
 # Roles not on either list get selection_method = "unknown" and are flagged.
-#
-# NOTE: In a production system these three constants (ELECTED_ROLES,
-# APPOINTED_ROLES, OFFICE_NORMALIZATION) would be pulled from the database
-# rather than hardcoded here — specifically from the office_types table and
-# a per-state selection_method reference table. Hardcoded for the MVP because
-# the reference data doesn't exist yet.
-#
-# The same applies to governing_entities and offices: in production these would
-# be pre-existing reference rows representing known counties and eligible offices.
-# Records that don't match a known entity or office should be flagged for review
-# rather than silently inserted. The MVP uses INSERT OR IGNORE, which is fine for
-# a single-source bootstrap but would hide conflicts in an ongoing pipeline.
 ELECTED_ROLES = {
     "Assessor",
     "Auditor-Controller",
