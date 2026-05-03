@@ -497,25 +497,28 @@ def write_sqlite(records: list[dict], path: str) -> None:
         (SOURCE_URL, SOURCE_TYPE, COLLECTED_AT),
     )
 
-    for rec in records:
-        # governing_entities
-        conn.execute(
-            "INSERT OR IGNORE INTO governing_entities (name) VALUES (?)",
-            (rec["county"],),
-        )
-        entity_id = conn.execute(
-            "SELECT entity_id FROM governing_entities WHERE name = ?", (rec["county"],)
-        ).fetchone()[0]
+    # Pre-populate reference tables and build in-memory id maps
+    conn.executemany(
+        "INSERT OR IGNORE INTO governing_entities (name) VALUES (?)",
+        {(rec["county"],) for rec in records},
+    )
+    entity_id_map = {
+        row[0]: row[1]
+        for row in conn.execute("SELECT name, entity_id FROM governing_entities")
+    }
 
-        # office_types
-        norm = rec["normalized_office_type"]
-        conn.execute(
-            "INSERT OR IGNORE INTO office_types (normalized_office_type) VALUES (?)",
-            (norm,),
-        )
-        office_type_id = conn.execute(
-            "SELECT office_type_id FROM office_types WHERE normalized_office_type = ?", (norm,)
-        ).fetchone()[0]
+    conn.executemany(
+        "INSERT OR IGNORE INTO office_types (normalized_office_type) VALUES (?)",
+        {(rec["normalized_office_type"],) for rec in records},
+    )
+    office_type_id_map = {
+        row[0]: row[1]
+        for row in conn.execute("SELECT normalized_office_type, office_type_id FROM office_types")
+    }
+
+    for rec in records:
+        entity_id = entity_id_map[rec["county"]]
+        office_type_id = office_type_id_map[rec["normalized_office_type"]]
 
         # offices (one row per county × local title)
         conn.execute(
