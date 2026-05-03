@@ -55,6 +55,12 @@ CA_COUNTIES = {
 # rather than hardcoded here — specifically from the office_types table and
 # a per-state selection_method reference table. Hardcoded for the MVP because
 # the reference data doesn't exist yet.
+#
+# The same applies to governing_entities and offices: in production these would
+# be pre-existing reference rows representing known counties and eligible offices.
+# Records that don't match a known entity or office should be flagged for review
+# rather than silently inserted. The MVP uses INSERT OR IGNORE, which is fine for
+# a single-source bootstrap but would hide conflicts in an ongoing pipeline.
 ELECTED_ROLES = {
     "Assessor",
     "Auditor-Controller",
@@ -449,7 +455,8 @@ def write_sqlite(records: list[dict], path: str) -> None:
             office_type_id      INTEGER REFERENCES office_types(office_type_id),
             local_office_title  TEXT NOT NULL,
             selection_method    TEXT,
-            is_active           INTEGER NOT NULL DEFAULT 1
+            is_active           INTEGER NOT NULL DEFAULT 1,
+            UNIQUE (entity_id, local_office_title)
         );
 
         CREATE TABLE IF NOT EXISTS people (
@@ -516,17 +523,23 @@ def write_sqlite(records: list[dict], path: str) -> None:
         for row in conn.execute("SELECT normalized_office_type, office_type_id FROM office_types")
     }
 
+    conn.executemany(
+        "INSERT OR IGNORE INTO offices (entity_id, office_type_id, local_office_title, selection_method) "
+        "VALUES (?, ?, ?, ?)",
+        {
+            (entity_id_map[rec["county"]], office_type_id_map[rec["normalized_office_type"]],
+             rec["local_office_title"], rec["selection_method"])
+            for rec in records
+        },
+    )
+    office_id_map = {
+        (row[0], row[1]): row[2]
+        for row in conn.execute("SELECT entity_id, local_office_title, office_id FROM offices")
+    }
+
     for rec in records:
         entity_id = entity_id_map[rec["county"]]
-        office_type_id = office_type_id_map[rec["normalized_office_type"]]
-
-        # offices (one row per county × local title)
-        conn.execute(
-            "INSERT INTO offices (entity_id, office_type_id, local_office_title, selection_method) "
-            "VALUES (?, ?, ?, ?)",
-            (entity_id, office_type_id, rec["local_office_title"], rec["selection_method"]),
-        )
-        office_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        office_id = office_id_map[(entity_id, rec["local_office_title"])]
 
         # people (no deduplication — known gap, noted in README)
         conn.execute("INSERT INTO people (full_name) VALUES (?)", (rec["full_name"],))
