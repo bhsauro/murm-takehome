@@ -541,6 +541,9 @@ def write_sqlite(records: list[dict], path: str) -> None:
         for row in conn.execute("SELECT entity_id, local_office_title, office_id FROM offices")
     }
 
+    # Core write loop: everything above is setup. This is where actual records
+    # are created — one person and one office_holder row per official, linking
+    # a person to a pre-existing office.
     for rec in records:
         entity_id = entity_id_map[rec["county"]]
         office_id = office_id_map[(entity_id, rec["local_office_title"])]
