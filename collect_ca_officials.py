@@ -504,7 +504,11 @@ def write_sqlite(records: list[dict], path: str) -> None:
         (SOURCE_URL, SOURCE_TYPE, COLLECTED_AT),
     )
 
-    # Pre-populate reference tables and build in-memory id maps
+    # Pre-populate reference tables and build in-memory id maps.
+    # In production, governing_entities, office_types, and offices would already
+    # exist as curated reference data — this step would be replaced by a lookup
+    # against pre-existing rows, with unmatched records flagged for review rather
+    # than auto-inserted.
     conn.executemany(
         "INSERT OR IGNORE INTO governing_entities (name) VALUES (?)",
         {(rec["county"],) for rec in records},
